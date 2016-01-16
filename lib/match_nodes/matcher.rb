@@ -50,6 +50,9 @@ got #{@failure_nodes.size} nodes :
       elsif expected == true
         @failure_attribute_value = nodes[0].attributes[name.to_s].to_s
         return @failure_attribute_value.present?
+      elsif expected.is_a? Regexp
+        @failure_attribute_value = nodes[0].attributes[name.to_s].to_s
+        return @failure_attribute_value.match(expected)
       else
         @failure_attribute_value = nodes[0].attributes[name.to_s].to_s
         return @failure_attribute_value == expected.to_s
