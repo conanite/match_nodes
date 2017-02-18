@@ -1,3 +1,7 @@
+require "active_support"
+require 'active_support/core_ext'
+require "action_view/vendor/html-scanner"
+
 module MatchNodes
   class Matcher
     def css_select root, selector
@@ -14,6 +18,14 @@ module MatchNodes
       matches_nodes? [root_node], @expected_nodes
     end
 
+    def failure_text_message
+      return nil if @failure_text.nil?
+      "
+expected text was: #{@failure_expected}
+  actual text was: #{@failure_text}
+"
+    end
+
     def failure_attribute_message
       return nil if @failure_attribute_name.nil?
       "
@@ -23,13 +35,14 @@ expected attribute #{@failure_attribute_name.inspect}
                got #{@failure_attribute_value.inspect}
 "
     end
+
     def failure_message
       "selector #{@failure_selector.split(/ +/).to_yaml}
 didn't match expected nodes
 #{@failure_expected.to_yaml}
 
 got #{@failure_nodes.size} nodes :
-#{@failure_nodes.join "\n"}#{failure_attribute_message}"
+#{@failure_nodes.join "\n"}#{failure_attribute_message}#{failure_text_message}"
     end
 
     def description
@@ -59,13 +72,19 @@ got #{@failure_nodes.size} nodes :
       end
     end
 
-    def matches_nodes? nodes, expected, path=''
+    def path_with_index str, i
+      i ? [str, i].join("#") : str
+    end
+
+    def matches_nodes? nodes, expected, path='', array_index=nil
+      @failure_text               = nil
       @failure_attribute_name     = nil
       @failure_attribute_value    = nil
       @failure_attribute_expected = nil
       @failure_nodes              = nodes
-      @failure_selector           = path
+      @failure_selector           = path_with_index(path, array_index)
       @failure_expected           = expected
+      @failure_index              = array_index
 
       if expected.is_a? Hash
         return false unless nodes.present?
@@ -82,7 +101,7 @@ got #{@failure_nodes.size} nodes :
                 puts node
               }
             else
-              return false unless matches_nodes?(new_nodes, value, [path, key].join(" ").strip)
+              return false unless matches_nodes?(new_nodes, value, [path_with_index(path, array_index), key].join(" ").strip)
             end
           end
         end
@@ -90,8 +109,10 @@ got #{@failure_nodes.size} nodes :
         return false unless expected == nodes.size
       elsif expected.is_a? Array
         return false unless expected.size == nodes.size
+        i = -1
         return false unless nodes.zip(expected).inject(true) { |truth, pair|
-          truth && matches_nodes?([pair[0]], pair[1], path)
+          i +=1
+          truth && matches_nodes?([pair[0]], pair[1], path, i)
         }
       else
         return false unless matches_node?(nodes[0], expected, path)
@@ -109,11 +130,11 @@ got #{@failure_nodes.size} nodes :
       elsif (expected == false) || (expected.nil?)
         node.nil?
       elsif expected.is_a? String
-        txt = node_to_txt(node)
-        node.present? && (txt == expected)
+        @failure_text = node_to_txt(node)
+        node.present? && (@failure_text == expected)
       elsif expected.is_a? Regexp
-        txt = node_to_txt(node)
-        node.present? && txt.match(expected)
+        @failure_text = node_to_txt(node)
+        node.present? && @failure_text.match(expected)
       else
         raise "don't know how to compare #{expected.inspect} to #{node.inspect}\nselector was #{path.inspect}"
       end
