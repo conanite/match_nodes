@@ -21,8 +21,14 @@ module MatchNodes
     def failure_text_message
       return nil if @failure_text.nil?
       "
-expected text was: #{@failure_expected}
-  actual text was: #{@failure_text}
+
+expected text was
+=================
+#{@failure_expected}
+
+  actual text was
+=================
+#{@failure_text}
 "
     end
 
@@ -40,7 +46,7 @@ expected attribute #{@failure_attribute_name.inspect}
       "selector #{@failure_selector.split(/ +/).to_yaml}
 didn't match expected nodes
 #{@failure_expected.to_yaml}
-
+#{if @failure_expected.is_a?(Array) ; "\nexpected #{@failure_expected.size} nodes\n" ; end}
 got #{@failure_nodes.size} nodes :
 #{@failure_nodes.join "\n"}#{failure_attribute_message}#{failure_text_message}"
     end
