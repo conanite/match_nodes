@@ -1,11 +1,10 @@
-require "active_support"
-require 'active_support/core_ext'
-require "action_view/vendor/html-scanner"
+require "yaml"
+require "nokogiri"
 
 module MatchNodes
   class Matcher
     def css_select root, selector
-      HTML::Selector.new(selector).select(root)
+      root.css selector
     end
 
     def initialize expected_nodes
@@ -14,7 +13,7 @@ module MatchNodes
 
     def matches? text
       @text = text
-      root_node = HTML::Document.new(text, false, false).root
+      root_node = Nokogiri::HTML(text)
       matches_nodes? [root_node], @expected_nodes
     end
 
@@ -48,11 +47,16 @@ didn't match expected nodes
 #{@failure_expected.to_yaml}
 #{if @failure_expected.is_a?(Array) ; "\nexpected #{@failure_expected.size} nodes\n" ; end}
 got #{@failure_nodes.size} nodes :
-#{@failure_nodes.join "\n"}#{failure_attribute_message}#{failure_text_message}"
+#{@failure_nodes.to_a.map {|n| n.to_html }.join "\n"}#{failure_attribute_message}#{failure_text_message}"
     end
 
     def description
       "contain html nodes #{@expected_nodes}"
+    end
+
+    def present? thing
+      return !thing.empty? if thing.respond_to?(:empty)
+      thing != nil && thing != "" && thing != [] && thing != {}
     end
 
     def matches_attribute? nodes, name, expected, path
@@ -68,7 +72,7 @@ got #{@failure_nodes.size} nodes :
         return @failure_attribute_value.blank?
       elsif expected == true
         @failure_attribute_value = nodes[0].attributes[name.to_s].to_s
-        return @failure_attribute_value.present?
+        return present? @failure_attribute_value
       elsif expected.is_a? Regexp
         @failure_attribute_value = nodes[0].attributes[name.to_s].to_s
         return @failure_attribute_value.match(expected)
@@ -93,7 +97,8 @@ got #{@failure_nodes.size} nodes :
       @failure_index              = array_index
 
       if expected.is_a? Hash
-        return false unless nodes.present?
+        return false unless present?(nodes)
+        raise "missing node: #{nodes.inspect} at path #{path}, expected #{expected}" if nodes[0] == nil
         expected.each do |key, value|
           if key.is_a? Symbol
             return false unless matches_attribute?(nodes, key, value, path)
@@ -128,7 +133,7 @@ got #{@failure_nodes.size} nodes :
 
     def matches_node? node, expected, path
       if expected == true
-        node.present?
+        present? node
       elsif (expected == :debug)
         puts "node at selector #{path.inspect}"
         puts node
@@ -137,10 +142,10 @@ got #{@failure_nodes.size} nodes :
         node.nil?
       elsif expected.is_a? String
         @failure_text = node_to_txt(node)
-        node.present? && (@failure_text == expected)
+        present?(node) && (@failure_text == expected)
       elsif expected.is_a? Regexp
         @failure_text = node_to_txt(node)
-        node.present? && @failure_text.match(expected)
+        present?(node) && @failure_text.match(expected)
       else
         raise "don't know how to compare #{expected.inspect} to #{node.inspect}\nselector was #{path.inspect}"
       end
