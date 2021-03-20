@@ -116,7 +116,7 @@ got #{@failure_nodes.size} nodes :
             end
           end
         end
-      elsif expected.is_a? Fixnum
+      elsif expected.is_a? Integer
         return false unless expected == nodes.size
       elsif expected.is_a? Array
         return false unless expected.size == nodes.size
